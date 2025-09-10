@@ -201,6 +201,20 @@
             font-weight: 600;
             font-size: 14px;
             box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .people-count .total-count {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .people-count .checked-count {
+            font-size: 12px;
+            opacity: 0.9;
         }
 
         .result-table {
@@ -674,7 +688,10 @@
         <div class="result" id="result">
             <div class="result-header">
                 <h3 class="result-title">📈 분석 결과</h3>
-                <div class="people-count" id="peopleCount">0명</div>
+                <div class="people-count" id="peopleCount">
+                    <div class="total-count">0명</div>
+                    <div class="checked-count">체크: 0명</div>
+                </div>
             </div>
             <div id="resultInfo"></div>
 
@@ -1126,21 +1143,35 @@
 
         function updateResultInfo(visibleCount) {
             const totalCount = currentData.length;
+            const checkedCount = resultBody.querySelectorAll('.row-checkbox:checked').length;
+            const uncheckedCount = visibleCount - checkedCount;
+
             resultInfo.innerHTML = `
                 <p><strong>총 ${totalCount}건</strong> 중 <strong>${visibleCount}건</strong>이 표시됩니다.</p>
+                <p style="margin-top: 8px; color: #666; font-size: 14px;">
+                    ${visibleCount}건 중 ${checkedCount}건이 체크되었습니다. 체크되지 않은 인원은 ${uncheckedCount}명입니다.
+                </p>
             `;
             updatePeopleCount(visibleCount);
         }
 
         function updatePeopleCount(visibleCount) {
+            const totalCountElement = peopleCount.querySelector('.total-count');
+            const checkedCountElement = peopleCount.querySelector('.checked-count');
+
             if (visibleCount !== undefined) {
-                peopleCount.textContent = `${visibleCount}명`;
+                totalCountElement.textContent = `${visibleCount}명`;
             } else {
                 // visibleCount가 제공되지 않은 경우 현재 표시된 행 수 계산
                 const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
                 const count = Math.max(0, visibleRows.length - 1); // 헤더 제외
-                peopleCount.textContent = `${count}명`;
+                totalCountElement.textContent = `${count}명`;
             }
+
+            // 체크된 사람 수 계산
+            const checkedRows = resultBody.querySelectorAll('.row-checkbox:checked');
+            const checkedCount = checkedRows.length;
+            checkedCountElement.textContent = `체크: ${checkedCount}명`;
         }
 
         function toggleRowGrayedOut(checkbox) {
@@ -1150,6 +1181,8 @@
             } else {
                 row.classList.remove('grayed-out');
             }
+            // 체크 상태 변경 시 인원 수 업데이트
+            updatePeopleCount();
         }
 
         function updateSelectAllCheckbox() {
@@ -1169,6 +1202,9 @@
                 selectAllCheckbox.indeterminate = false;
                 selectAllCheckbox.checked = false;
             }
+
+            // 체크 상태 변경 시 인원 수 업데이트
+            updatePeopleCount();
         }
 
         // 터치 환경을 위한 행 클릭 핸들러 설정
@@ -1211,6 +1247,7 @@
                 }
             });
             updateSelectAllCheckbox();
+            saveCheckedItems();
         }
 
         function deselectAll() {
@@ -1223,6 +1260,7 @@
                 }
             });
             updateSelectAllCheckbox();
+            saveCheckedItems();
         }
 
         function clearFilters() {
@@ -1354,6 +1392,9 @@
             // 결과 표시
             resultInfo.innerHTML = `
                 <p><strong>총 ${data.length}건</strong>의 거래내역이 표시됩니다.</p>
+                <p style="margin-top: 8px; color: #666; font-size: 14px;">
+                    ${data.length}건 중 0건이 체크되었습니다. 체크되지 않은 인원은 ${data.length}명입니다.
+                </p>
             `;
 
             // 인원 수 업데이트
@@ -1502,6 +1543,9 @@
                     // 결과 표시
                     resultInfo.innerHTML = `
                         <p><strong>총 ${data.total_records}건</strong>의 거래내역이 분석되었습니다.</p>
+                        <p style="margin-top: 8px; color: #666; font-size: 14px;">
+                            ${data.total_records}건 중 0건이 체크되었습니다. 체크되지 않은 인원은 ${data.total_records}명입니다.
+                        </p>
                     `;
 
                     // 인원 수 업데이트
@@ -1563,6 +1607,14 @@
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', function() {
             initializePage();
+        });
+        document.querySelector(`#resultTable`).addEventListener("input", ()=>{
+            filterData();
+            saveCheckedItems();
+        });
+        document.querySelector(`#resultTable`).addEventListener("click", ()=>{
+            filterData();
+            saveCheckedItems();
         });
     </script>
 </body>
