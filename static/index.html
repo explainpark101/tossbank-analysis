@@ -1357,7 +1357,8 @@
             result.style.display = 'none';
 
             try {
-                const response = await fetch('/process-transaction-data', {
+                const baseUrl = window.location.origin + window.location.pathname + window.location.pathname.endsWith('/') ? '' : '/';
+                const response = await fetch(baseUrl + 'process-transaction-data', {
                     method: 'POST',
                     body: formData
                 });
