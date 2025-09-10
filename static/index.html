@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>토스뱅크 거래내역 분석</title>
+    <!-- 파일 다운로드를 위한 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input[type="file"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input[type="file"]:focus,
+        .form-group input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-display {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border: 2px dashed #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-display:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-input-display.has-file {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+
+        .file-text {
+            flex: 1;
+            color: #666;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .result-table th,
+        .result-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .result-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .result-table tr:hover {
+            background: #f0f2ff;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #e6f7e6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .label-mapping-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .mapping-value,
+        .mapping-label {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .mapping-value:focus,
+        .mapping-label:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .remove-mapping {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-mapping:hover {
+            background: #ff5252;
+        }
+
+        .add-mapping-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .add-mapping-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 12px;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .filter-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+        }
+
+        .filter-dropdown {
+            min-width: 150px;
+        }
+
+        .filter-dropdown select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .filter-dropdown select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .checkbox-column {
+            width: 50px;
+            text-align: center;
+        }
+
+        .result-table th.checkbox-column,
+        .result-table td.checkbox-column {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .row-checkbox {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+
+        .result-table tr.grayed-out {
+            background-color: #f5f5f5 !important;
+            color: #999 !important;
+            opacity: 0.6;
+        }
+
+        .result-table tr.grayed-out:hover {
+            background-color: #e8e8e8 !important;
+        }
+
+        .result-table tr.hidden {
+            display: none;
+        }
+
+        .last-analysis-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .info-header h4 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .analysis-date {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .info-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .load-btn, .clear-btn {
+            padding: 8px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .load-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .clear-btn:hover {
+            background: rgba(255, 99, 99, 0.3);
+            border-color: rgba(255, 99, 99, 0.5);
+        }
+
+        .download-action-btn {
+            background: #e67e22 !important;
+            border-color: #d35400 !important;
+            color: white !important;
+        }
+
+        .download-action-btn:hover {
+            background: #d35400 !important;
+            border-color: #c0392b !important;
+        }
+
+        .download-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .download-modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 25px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .download-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .download-modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+
+        .download-options {
+            margin-bottom: 25px;
+        }
+
+        .download-option {
+            margin-bottom: 15px;
+        }
+
+        .download-option label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .download-option label:hover {
+            background-color: #f8f9fa;
+        }
+
+        .download-option input[type="radio"] {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .option-text {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .download-formats h4 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .format-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .format-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: 2px solid #e1e5e9;
+            background: white;
+            color: #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .format-btn:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .format-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .download-info {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .download-info small {
+            color: #666;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏦 토스뱅크 거래내역 분석</h1>
+            <p>Excel 파일을 업로드하여 거래내역을 분석해보세요</p>
+        </div>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Excel 파일 선택</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                    <div class="file-input-display" id="fileDisplay">
+                        <span class="file-icon">📁</span>
+                        <span class="file-text">파일을 선택하세요</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">비밀번호</label>
+                <input type="password" id="password" name="password" placeholder="Excel 파일 비밀번호를 입력하세요" required>
+            </div>
+
+            <div class="form-group">
+                <label>라벨 매핑 설정 (선택사항)</label>
+                <div id="labelMappings">
+                    <div class="label-mapping-item">
+                        <input type="number" placeholder="금액" class="mapping-value" min="0">
+                        <input type="text" placeholder="라벨명" class="mapping-label">
+                        <button type="button" class="remove-mapping" onclick="removeMapping(this)">×</button>
+                    </div>
+                </div>
+                <button type="button" id="addMapping" class="add-mapping-btn">+ 라벨 추가</button>
+                <small class="help-text">기본값: 15000원 → 술안먹, 18000원 → 술먹음</small>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                📊 분석 시작
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>데이터를 처리 중입니다...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+
+        <div class="result" id="result">
+            <h3>📈 분석 결과</h3>
+            <div id="resultInfo"></div>
+
+            <!-- 필터링 및 검색 UI -->
+            <div class="filter-section">
+                <div class="filter-controls">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="입금자명으로 검색...">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <div class="filter-dropdown">
+                        <select id="categoryFilter">
+                            <option value="">모든 구분</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button type="button" id="selectAllBtn" class="action-btn">전체 선택</button>
+                        <button type="button" id="deselectAllBtn" class="action-btn">전체 해제</button>
+                        <button type="button" id="clearFiltersBtn" class="action-btn">필터 초기화</button>
+                        <button type="button" id="downloadResults" class="action-btn download-action-btn">💾 다운로드</button>
+                    </div>
+                </div>
+            </div>
+
+            <table class="result-table" id="resultTable">
+                <thead>
+                    <tr>
+                        <th class="checkbox-column">
+                            <input type="checkbox" id="selectAllCheckbox">
+                        </th>
+                        <th>입금자</th>
+                        <th>입금액</th>
+                        <th>구분</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 다운로드 모달 -->
+    <div id="downloadModal" class="download-modal">
+        <div class="download-modal-content">
+            <div class="download-modal-header">
+                <h3>💾 파일 다운로드</h3>
+                <button class="close-btn" id="closeDownloadModal">&times;</button>
+            </div>
+            <div class="download-options">
+                <div class="download-option">
+                    <label>
+                        <input type="radio" name="downloadScope" value="all" checked>
+                        <span class="option-text">전체 데이터 다운로드</span>
+                    </label>
+                </div>
+                <div class="download-option">
+                    <label>
+                        <input type="radio" name="downloadScope" value="selected">
+                        <span class="option-text">선택된 행만 다운로드</span>
+                    </label>
+                </div>
+                <div class="download-option">
+                    <label>
+                        <input type="radio" name="downloadScope" value="visible">
+                        <span class="option-text">현재 표시된 행만 다운로드</span>
+                    </label>
+                </div>
+            </div>
+            <div class="download-formats">
+                <h4>파일 형식 선택:</h4>
+                <div class="format-buttons">
+                    <button class="format-btn" data-format="csv">📊 CSV</button>
+                    <button class="format-btn" data-format="xlsx">📈 Excel</button>
+                    <button class="format-btn" data-format="json">📋 JSON</button>
+                </div>
+            </div>
+            <div class="download-info">
+                <small id="downloadInfo">전체 데이터를 다운로드합니다.</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('file');
+        const fileDisplay = document.getElementById('fileDisplay');
+        const passwordInput = document.getElementById('password');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const result = document.getElementById('result');
+        const resultInfo = document.getElementById('resultInfo');
+        const resultBody = document.getElementById('resultBody');
+        const labelMappings = document.getElementById('labelMappings');
+        const addMappingBtn = document.getElementById('addMapping');
+
+        // 필터링 관련 요소들
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+        // 데이터 저장
+        let currentData = [];
+
+        // localStorage 관련 함수들
+        function saveToLocalStorage(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+                return true;
+            } catch (error) {
+                console.error('localStorage 저장 실패:', error);
+                return false;
+            }
+        }
+
+        function loadFromLocalStorage(key) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : null;
+            } catch (error) {
+                console.error('localStorage 불러오기 실패:', error);
+                return null;
+            }
+        }
+
+        function saveAnalysisData(password, labelMappings, resultData, checkedItems = []) {
+            const analysisData = {
+                password: password,
+                labelMappings: labelMappings,
+                resultData: resultData,
+                checkedItems: checkedItems,
+                analysisDate: new Date().toISOString(),
+                timestamp: Date.now()
+            };
+            return saveToLocalStorage('lastAnalysis', analysisData);
+        }
+
+        function saveCheckedItems() {
+            const checkedItems = [];
+            resultBody.querySelectorAll('.row-checkbox:checked').forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index);
+                checkedItems.push(index);
+            });
+
+            const lastAnalysis = loadLastAnalysis();
+            if (lastAnalysis) {
+                lastAnalysis.checkedItems = checkedItems;
+                saveToLocalStorage('lastAnalysis', lastAnalysis);
+            }
+        }
+
+        function loadCheckedItems() {
+            const lastAnalysis = loadLastAnalysis();
+            if (lastAnalysis && lastAnalysis.checkedItems) {
+                lastAnalysis.checkedItems.forEach(index => {
+                    const checkbox = resultBody.querySelector(`.row-checkbox[data-index="${index}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        toggleRowGrayedOut(checkbox);
+                    }
+                });
+                updateSelectAllCheckbox();
+            }
+        }
+
+        function loadLastAnalysis() {
+            return loadFromLocalStorage('lastAnalysis');
+        }
+
+        function clearAnalysisData() {
+            try {
+                localStorage.removeItem('lastAnalysis');
+                return true;
+            } catch (error) {
+                console.error('localStorage 삭제 실패:', error);
+                return false;
+            }
+        }
+
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                return navigator.clipboard.writeText(text);
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    return Promise.resolve();
+                } catch (err) {
+                    return Promise.reject(err);
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+        }
+
+        // 파일 다운로드 관련 함수들
+        function getDataForDownload(scope) {
+            let data = [];
+
+            switch (scope) {
+                case 'all':
+                    data = currentData;
+                    break;
+                case 'selected':
+                    const checkedIndices = [];
+                    resultBody.querySelectorAll('.row-checkbox:checked').forEach(checkbox => {
+                        checkedIndices.push(parseInt(checkbox.dataset.index));
+                    });
+                    data = currentData.filter((_, index) => checkedIndices.includes(index));
+                    break;
+                case 'visible':
+                    const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+                    const visibleIndices = [];
+                    visibleRows.forEach(row => {
+                        const checkbox = row.querySelector('.row-checkbox');
+                        if (checkbox) {
+                            visibleIndices.push(parseInt(checkbox.dataset.index));
+                        }
+                    });
+                    data = currentData.filter((_, index) => visibleIndices.includes(index));
+                    break;
+            }
+
+            return data;
+        }
+
+        function downloadCSV(data, filename) {
+            if (data.length === 0) {
+                alert('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            const headers = ['입금자', '입금액', '구분'];
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => [
+                    `"${row.입금자}"`,
+                    row.입금액,
+                    `"${row.구분}"`
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            saveAs(blob, filename);
+        }
+
+        function downloadXLSX(data, filename) {
+            if (data.length === 0) {
+                alert('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '분석결과');
+
+            XLSX.writeFile(workbook, filename);
+        }
+
+        function downloadJSON(data, filename) {
+            if (data.length === 0) {
+                alert('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            const jsonContent = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+            saveAs(blob, filename);
+        }
+
+        function showDownloadModal() {
+            if (!currentData || currentData.length === 0) {
+                alert('다운로드할 분석 결과가 없습니다.');
+                return;
+            }
+
+            // 다운로드 정보 업데이트
+            updateDownloadInfo();
+            document.getElementById('downloadModal').style.display = 'block';
+        }
+
+        function hideDownloadModal() {
+            document.getElementById('downloadModal').style.display = 'none';
+        }
+
+        function updateDownloadInfo() {
+            const scope = document.querySelector('input[name="downloadScope"]:checked').value;
+            const data = getDataForDownload(scope);
+            const info = document.getElementById('downloadInfo');
+
+            let message = '';
+            switch (scope) {
+                case 'all':
+                    message = `전체 ${data.length}건의 데이터를 다운로드합니다.`;
+                    break;
+                case 'selected':
+                    const checkedCount = resultBody.querySelectorAll('.row-checkbox:checked').length;
+                    message = `선택된 ${checkedCount}건의 데이터를 다운로드합니다.`;
+                    break;
+                case 'visible':
+                    const visibleCount = resultBody.querySelectorAll('tr:not(.hidden)').length - 1; // 헤더 제외
+                    message = `현재 표시된 ${visibleCount}건의 데이터를 다운로드합니다.`;
+                    break;
+            }
+
+            info.textContent = message;
+        }
+
+        function generateFilename(format) {
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+            return `토스뱅크_거래내역_분석_${dateStr}_${timeStr}.${format}`;
+        }
+
+        function restoreFormData(analysisData) {
+            if (!analysisData) return;
+
+            // 비밀번호 복원
+            if (analysisData.password) {
+                passwordInput.value = analysisData.password;
+            }
+
+            // 라벨 매핑 복원
+            if (analysisData.labelMappings && analysisData.labelMappings.length > 0) {
+                // 기존 매핑 제거 (첫 번째 제외)
+                const existingMappings = labelMappings.querySelectorAll('.label-mapping-item');
+                for (let i = 1; i < existingMappings.length; i++) {
+                    existingMappings[i].remove();
+                }
+
+                // 라벨 매핑 복원
+                analysisData.labelMappings.forEach((mapping, index) => {
+                    if (index === 0) {
+                        // 첫 번째 매핑은 기존 입력 필드 사용
+                        const valueInput = labelMappings.querySelector('.mapping-value');
+                        const labelInput = labelMappings.querySelector('.mapping-label');
+                        if (valueInput && labelInput) {
+                            valueInput.value = mapping.value;
+                            labelInput.value = mapping.label;
+                        }
+                    } else {
+                        // 추가 매핑은 새로 생성
+                        addMappingItem();
+                        const newMapping = labelMappings.children[labelMappings.children.length - 1];
+                        const valueInput = newMapping.querySelector('.mapping-value');
+                        const labelInput = newMapping.querySelector('.mapping-label');
+                        if (valueInput && labelInput) {
+                            valueInput.value = mapping.value;
+                            labelInput.value = mapping.label;
+                        }
+                    }
+                });
+            }
+        }
+
+        function displayLastAnalysisInfo(analysisData) {
+            if (!analysisData) return;
+
+            const analysisDate = new Date(analysisData.analysisDate);
+            const dateString = analysisDate.toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const lastAnalysisInfo = document.createElement('div');
+            lastAnalysisInfo.className = 'last-analysis-info';
+            lastAnalysisInfo.innerHTML = `
+                <div class="info-header">
+                    <h4>📋 마지막 분석 결과</h4>
+                    <span class="analysis-date">${dateString}</span>
+                </div>
+                <div class="info-actions">
+                    <button type="button" id="loadLastAnalysis" class="load-btn">불러오기</button>
+                    <button type="button" id="clearLastAnalysis" class="clear-btn">삭제</button>
+                </div>
+            `;
+
+            // 기존 정보가 있으면 제거
+            const existingInfo = document.querySelector('.last-analysis-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+
+            // 컨테이너 앞에 삽입
+            const container = document.querySelector('.container');
+            container.insertBefore(lastAnalysisInfo, container.firstChild);
+        }
+
+        // 필터링 및 검색 함수들
+        function populateCategoryFilter(data) {
+            const categories = [...new Set(data.map(item => item.구분))];
+            categoryFilter.innerHTML = '<option value="">모든 구분</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        function filterData() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+
+            const rows = resultBody.querySelectorAll('tr');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const nameCell = row.querySelector('td:nth-child(2)');
+                const categoryCell = row.querySelector('td:nth-child(4)');
+
+                if (!nameCell || !categoryCell) return;
+
+                const name = nameCell.textContent.toLowerCase();
+                const category = categoryCell.textContent;
+
+                const matchesSearch = name.includes(searchTerm);
+                const matchesCategory = !selectedCategory || category === selectedCategory;
+
+                if (matchesSearch && matchesCategory) {
+                    row.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+
+            // 결과 정보 업데이트
+            updateResultInfo(visibleCount);
+        }
+
+        function updateResultInfo(visibleCount) {
+            const totalCount = currentData.length;
+            resultInfo.innerHTML = `
+                <p><strong>총 ${totalCount}건</strong> 중 <strong>${visibleCount}건</strong>이 표시됩니다.</p>
+            `;
+        }
+
+        function toggleRowGrayedOut(checkbox) {
+            const row = checkbox.closest('tr');
+            if (checkbox.checked) {
+                row.classList.add('grayed-out');
+            } else {
+                row.classList.remove('grayed-out');
+            }
+        }
+
+        function updateSelectAllCheckbox() {
+            const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+            const checkedRows = resultBody.querySelectorAll('tr:not(.hidden) .row-checkbox:checked');
+
+            if (visibleRows.length === 0) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            } else if (checkedRows.length === visibleRows.length) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = true;
+            } else if (checkedRows.length > 0) {
+                selectAllCheckbox.indeterminate = true;
+                selectAllCheckbox.checked = false;
+            } else {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            }
+        }
+
+        function selectAllVisible() {
+            const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+            visibleRows.forEach(row => {
+                const checkbox = row.querySelector('.row-checkbox');
+                if (checkbox && !checkbox.checked) {
+                    checkbox.checked = true;
+                    toggleRowGrayedOut(checkbox);
+                }
+            });
+            updateSelectAllCheckbox();
+        }
+
+        function deselectAll() {
+            const allRows = resultBody.querySelectorAll('tr');
+            allRows.forEach(row => {
+                const checkbox = row.querySelector('.row-checkbox');
+                if (checkbox && checkbox.checked) {
+                    checkbox.checked = false;
+                    toggleRowGrayedOut(checkbox);
+                }
+            });
+            updateSelectAllCheckbox();
+        }
+
+        function clearFilters() {
+            searchInput.value = '';
+            categoryFilter.value = '';
+            deselectAll();
+            filterData();
+        }
+
+        // 이벤트 리스너 등록
+        searchInput.addEventListener('input', filterData);
+        categoryFilter.addEventListener('change', filterData);
+        selectAllCheckbox.addEventListener('change', function() {
+            const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+            visibleRows.forEach(row => {
+                const checkbox = row.querySelector('.row-checkbox');
+                if (checkbox) {
+                    checkbox.checked = selectAllCheckbox.checked;
+                    toggleRowGrayedOut(checkbox);
+                }
+            });
+            saveCheckedItems();
+        });
+        selectAllBtn.addEventListener('click', selectAllVisible);
+        deselectAllBtn.addEventListener('click', deselectAll);
+        clearFiltersBtn.addEventListener('click', clearFilters);
+
+        // 페이지 로드 시 마지막 분석 데이터 확인
+        function initializePage() {
+            const lastAnalysis = loadLastAnalysis();
+            if (lastAnalysis) {
+                displayLastAnalysisInfo(lastAnalysis);
+            }
+
+            // 이벤트 리스너 등록
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.id === 'loadLastAnalysis') {
+                    loadLastAnalysisData();
+                }
+                if (e.target && e.target.id === 'clearLastAnalysis') {
+                    clearLastAnalysisData();
+                }
+                if (e.target && e.target.id === 'downloadResults') {
+                    showDownloadModal();
+                }
+                if (e.target && e.target.id === 'closeDownloadModal') {
+                    hideDownloadModal();
+                }
+                if (e.target && e.target.classList.contains('format-btn')) {
+                    const format = e.target.dataset.format;
+                    const scope = document.querySelector('input[name="downloadScope"]:checked').value;
+                    const data = getDataForDownload(scope);
+                    const filename = generateFilename(format);
+
+                    switch (format) {
+                        case 'csv':
+                            downloadCSV(data, filename);
+                            break;
+                        case 'xlsx':
+                            downloadXLSX(data, filename);
+                            break;
+                        case 'json':
+                            downloadJSON(data, filename);
+                            break;
+                    }
+
+                    hideDownloadModal();
+                }
+            });
+        }
+
+        function loadLastAnalysisData() {
+            const lastAnalysis = loadLastAnalysis();
+            if (!lastAnalysis) return;
+
+            // 폼 데이터 복원
+            restoreFormData(lastAnalysis);
+
+            // 결과 데이터 표시
+            if (lastAnalysis.resultData) {
+                currentData = lastAnalysis.resultData;
+                displayAnalysisResults(lastAnalysis.resultData);
+
+                // 성공 메시지 표시
+                success.textContent = '마지막 분석 결과를 불러왔습니다.';
+                success.style.display = 'block';
+                error.style.display = 'none';
+                result.style.display = 'block';
+            }
+        }
+
+        function clearLastAnalysisData() {
+            if (confirm('저장된 분석 데이터를 삭제하시겠습니까?')) {
+                if (clearAnalysisData()) {
+                    // UI에서 마지막 분석 정보 제거
+                    const lastAnalysisInfo = document.querySelector('.last-analysis-info');
+                    if (lastAnalysisInfo) {
+                        lastAnalysisInfo.remove();
+                    }
+
+                    // 폼 초기화
+                    form.reset();
+                    fileDisplay.classList.remove('has-file');
+                    fileDisplay.querySelector('.file-text').textContent = '파일을 선택하세요';
+
+                    // 결과 초기화
+                    result.style.display = 'none';
+                    success.style.display = 'none';
+                    error.style.display = 'none';
+                    currentData = [];
+
+                    alert('저장된 데이터가 삭제되었습니다.');
+                } else {
+                    alert('데이터 삭제에 실패했습니다.');
+                }
+            }
+        }
+
+        function displayAnalysisResults(data) {
+            // 결과 표시
+            resultInfo.innerHTML = `
+                <p><strong>총 ${data.length}건</strong>의 거래내역이 표시됩니다.</p>
+            `;
+
+            // 테이블 데이터 채우기
+            resultBody.innerHTML = '';
+            data.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="checkbox-column">
+                        <input type="checkbox" class="row-checkbox" data-index="${index}">
+                    </td>
+                    <td>${item.입금자}</td>
+                    <td>${item.입금액.toLocaleString()}원</td>
+                    <td>${item.구분}</td>
+                `;
+                resultBody.appendChild(row);
+            });
+
+            // 체크박스 이벤트 리스너 추가
+            resultBody.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    toggleRowGrayedOut(this);
+                    updateSelectAllCheckbox();
+                    saveCheckedItems();
+                });
+            });
+
+            // 카테고리 필터 옵션 채우기
+            populateCategoryFilter(data);
+        }
+
+
+        // 라벨 매핑 추가
+        addMappingBtn.addEventListener('click', function() {
+            addMappingItem();
+        });
+
+        // 라벨 매핑 아이템 추가 함수
+        function addMappingItem() {
+            const mappingItem = document.createElement('div');
+            mappingItem.className = 'label-mapping-item';
+            mappingItem.innerHTML = `
+                <input type="number" placeholder="금액" class="mapping-value" min="0">
+                <input type="text" placeholder="라벨명" class="mapping-label">
+                <button type="button" class="remove-mapping" onclick="removeMapping(this)">×</button>
+            `;
+            labelMappings.appendChild(mappingItem);
+        }
+
+        // 라벨 매핑 아이템 제거 함수
+        function removeMapping(button) {
+            const mappingItem = button.parentElement;
+            if (labelMappings.children.length > 1) {
+                mappingItem.remove();
+            }
+        }
+
+        // 라벨 매핑 데이터 수집 함수
+        function getLabelMappings() {
+            const mappings = [];
+            const mappingItems = labelMappings.querySelectorAll('.label-mapping-item');
+
+            mappingItems.forEach(item => {
+                const valueInput = item.querySelector('.mapping-value');
+                const labelInput = item.querySelector('.mapping-label');
+
+                if (valueInput.value && labelInput.value) {
+                    mappings.push({
+                        value: parseInt(valueInput.value),
+                        label: labelInput.value
+                    });
+                }
+            });
+
+            return mappings;
+        }
+
+        // 파일 선택 시 UI 업데이트
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileDisplay.classList.add('has-file');
+                fileDisplay.querySelector('.file-text').textContent = file.name;
+            } else {
+                fileDisplay.classList.remove('has-file');
+                fileDisplay.querySelector('.file-text').textContent = '파일을 선택하세요';
+            }
+        });
+
+        // 폼 제출 처리
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('password', passwordInput.value);
+
+            // 라벨 매핑 데이터 추가
+            const labelMappingsData = getLabelMappings();
+            if (labelMappingsData.length > 0) {
+                formData.append('label_mappings', JSON.stringify(labelMappingsData));
+            }
+
+            // UI 상태 변경
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('/process-transaction-data', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    success.textContent = data.message;
+                    success.style.display = 'block';
+
+                    // 데이터 저장
+                    currentData = data.data;
+
+                    // localStorage에 분석 데이터 저장
+                    const labelMappingsData = getLabelMappings();
+                    const checkedItems = [];
+                    saveAnalysisData(passwordInput.value, labelMappingsData, data.data, checkedItems);
+
+                    // 마지막 분석 정보 업데이트
+                    const savedAnalysis = loadLastAnalysis();
+                    if (savedAnalysis) {
+                        displayLastAnalysisInfo(savedAnalysis);
+                    }
+
+                    // 결과 표시
+                    resultInfo.innerHTML = `
+                        <p><strong>총 ${data.total_records}건</strong>의 거래내역이 분석되었습니다.</p>
+                    `;
+
+                    // 테이블 데이터 채우기
+                    resultBody.innerHTML = '';
+                    data.data.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="checkbox-column">
+                                <input type="checkbox" class="row-checkbox" data-index="${index}">
+                            </td>
+                            <td>${item.입금자}</td>
+                            <td>${item.입금액.toLocaleString()}원</td>
+                            <td>${item.구분}</td>
+                        `;
+                        resultBody.appendChild(row);
+                    });
+
+                    // 체크박스 이벤트 리스너 추가
+                    resultBody.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                        checkbox.addEventListener('change', function() {
+                            toggleRowGrayedOut(this);
+                            updateSelectAllCheckbox();
+                        });
+                    });
+
+                    // 카테고리 필터 옵션 채우기
+                    populateCategoryFilter(data.data);
+
+                    result.style.display = 'block';
+                } else {
+                    error.textContent = data.detail || '오류가 발생했습니다.';
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                error.textContent = '네트워크 오류가 발생했습니다.';
+                error.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // 다운로드 옵션 변경 이벤트 리스너
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.name === 'downloadScope') {
+                updateDownloadInfo();
+            }
+        });
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePage();
+        });
+    </script>
+</body>
+</html>
