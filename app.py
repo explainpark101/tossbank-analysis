@@ -1,4 +1,5 @@
 import io
+import re
 import pandas as pd
 import msoffcrypto
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
@@ -43,7 +44,13 @@ def process_excel_data(file_content: bytes, password: str, label_mappings: List[
         # 적요 정리
         df["적요"] = df["적요"].str.replace(r"\(.*$", "", regex=True)
         df["적요"] = df["적요"].str.replace(" ", "")
-        df["적요"] = df["적요"].str.replace(r"(\d{2})(학번)?([가-힣]{2,3})", r"\1\3", regex=True)
+        # 10자리 숫자 + 한글 패턴에서 앞의 2자리 숫자 + 한글 추출 (우선순위)
+        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{3})$", r"\1\2", regex=True)
+        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{2})$", r"\1\2", regex=True)
+        # 학번 패턴에서 숫자 + 한글 추출
+        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
+        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
+
 
         # 적요별 거래금액 합계
         df = df.groupby("적요")["거래 금액"].sum().reset_index()

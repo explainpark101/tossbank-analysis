@@ -179,6 +179,30 @@
             margin-bottom: 15px;
         }
 
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .result-title {
+            color: #333;
+            margin: 0;
+        }
+
+        .people-count {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
         .result-table {
             width: 100%;
             border-collapse: collapse;
@@ -648,7 +672,10 @@
         <div class="success" id="success"></div>
 
         <div class="result" id="result">
-            <h3>📈 분석 결과</h3>
+            <div class="result-header">
+                <h3 class="result-title">📈 분석 결과</h3>
+                <div class="people-count" id="peopleCount">0명</div>
+            </div>
             <div id="resultInfo"></div>
 
             <!-- 필터링 및 검색 UI -->
@@ -746,6 +773,7 @@
         const result = document.getElementById('result');
         const resultInfo = document.getElementById('resultInfo');
         const resultBody = document.getElementById('resultBody');
+        const peopleCount = document.getElementById('peopleCount');
         const labelMappings = document.getElementById('labelMappings');
         const addMappingBtn = document.getElementById('addMapping');
 
@@ -1101,6 +1129,18 @@
             resultInfo.innerHTML = `
                 <p><strong>총 ${totalCount}건</strong> 중 <strong>${visibleCount}건</strong>이 표시됩니다.</p>
             `;
+            updatePeopleCount(visibleCount);
+        }
+
+        function updatePeopleCount(visibleCount) {
+            if (visibleCount !== undefined) {
+                peopleCount.textContent = `${visibleCount}명`;
+            } else {
+                // visibleCount가 제공되지 않은 경우 현재 표시된 행 수 계산
+                const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+                const count = Math.max(0, visibleRows.length - 1); // 헤더 제외
+                peopleCount.textContent = `${count}명`;
+            }
         }
 
         function toggleRowGrayedOut(checkbox) {
@@ -1141,7 +1181,7 @@
                     if (e.target.type === 'checkbox') {
                         return;
                     }
-                    
+
                     const checkbox = row.querySelector('.row-checkbox');
                     if (checkbox) {
                         checkbox.checked = !checkbox.checked;
@@ -1192,9 +1232,18 @@
             filterData();
         }
 
-        // 이벤트 리스너 등록
-        searchInput.addEventListener('input', filterData);
-        categoryFilter.addEventListener('change', filterData);
+        // 필터 변경 시 인원 수 업데이트를 위한 이벤트 리스너 추가
+        function setupFilterEventListeners() {
+            searchInput.addEventListener('input', function() {
+                filterData();
+            });
+            categoryFilter.addEventListener('change', function() {
+                filterData();
+            });
+        }
+
+        // 이벤트 리스너 등록 (중복 제거)
+        // searchInput과 categoryFilter 이벤트는 setupFilterEventListeners에서 처리
         selectAllCheckbox.addEventListener('change', function() {
             const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
             visibleRows.forEach(row => {
@@ -1307,6 +1356,9 @@
                 <p><strong>총 ${data.length}건</strong>의 거래내역이 표시됩니다.</p>
             `;
 
+            // 인원 수 업데이트
+            updatePeopleCount(data.length);
+
             // 테이블 데이터 채우기
             resultBody.innerHTML = '';
             data.forEach((item, index) => {
@@ -1333,6 +1385,9 @@
 
             // 터치 환경을 위한 행 클릭 핸들러 설정
             setupRowClickHandlers();
+
+            // 필터 이벤트 리스너 설정
+            setupFilterEventListeners();
 
             // 카테고리 필터 옵션 채우기
             populateCategoryFilter(data);
@@ -1449,6 +1504,9 @@
                         <p><strong>총 ${data.total_records}건</strong>의 거래내역이 분석되었습니다.</p>
                     `;
 
+                    // 인원 수 업데이트
+                    updatePeopleCount(data.data.length);
+
                     // 테이블 데이터 채우기
                     resultBody.innerHTML = '';
                     data.data.forEach((item, index) => {
@@ -1474,6 +1532,9 @@
 
                     // 터치 환경을 위한 행 클릭 핸들러 설정
                     setupRowClickHandlers();
+
+                    // 필터 이벤트 리스너 설정
+                    setupFilterEventListeners();
 
                     // 카테고리 필터 옵션 채우기
                     populateCategoryFilter(data.data);
