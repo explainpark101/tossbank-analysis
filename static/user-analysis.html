@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>유저별 입금액 분석</title>
+    <!-- 파일 다운로드를 위한 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input[type="file"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input[type="file"]:focus,
+        .form-group input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-display {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border: 2px dashed #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-display:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-input-display.has-file {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+
+        .file-text {
+            flex: 1;
+            color: #666;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+            overflow-x: auto;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .result-title {
+            color: #333;
+            margin: 0;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-card h4 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .count {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .result-table th,
+        .result-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .result-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .result-table tr:hover {
+            background: #f0f2ff;
+        }
+
+        .amount-category {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .category-over-30k {
+            background: #e8f5e8;
+            color: #2d5a2d;
+        }
+
+        .category-over-20k {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .category-over-10k {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .category-under-10k {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .category-no-deposit {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #e6f7e6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .download-btn {
+            background: #e67e22;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+
+        .download-btn:hover {
+            background: #d35400;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👥 유저별 입금액 분석</h1>
+            <p>입금 기록과 유저목록을 업로드하여 유저별 총 입금액을 분석해보세요</p>
+            <div style="margin-top: 15px;">
+                <a href="/" style="color: #667eea; text-decoration: none; font-weight: 600; padding: 8px 16px; border: 2px solid #667eea; border-radius: 8px; transition: all 0.2s ease;" onmouseover="this.style.background='#667eea'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#667eea';">🏦 거래내역 분석</a>
+            </div>
+        </div>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="depositFile">입금 기록 Excel 파일</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="depositFile" name="deposit_file" accept=".xlsx,.xls" required>
+                    <div class="file-input-display" id="depositFileDisplay">
+                        <span class="file-icon">📊</span>
+                        <span class="file-text">입금 기록 파일을 선택하세요</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="userFile">유저목록 Excel 파일</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="userFile" name="user_file" accept=".xlsx,.xls" required>
+                    <div class="file-input-display" id="userFileDisplay">
+                        <span class="file-icon">👥</span>
+                        <span class="file-text">유저목록 파일을 선택하세요</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">입금 기록 파일 비밀번호</label>
+                <input type="password" id="password" name="password" placeholder="입금 기록 Excel 파일 비밀번호를 입력하세요" required>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                📈 분석 시작
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>데이터를 처리 중입니다...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+
+        <div class="result" id="result">
+            <div class="result-header">
+                <h3 class="result-title">📊 분석 결과</h3>
+                <button class="download-btn" id="downloadBtn">💾 다운로드</button>
+            </div>
+
+            <div class="summary-cards" id="summaryCards">
+                <!-- 요약 카드들이 여기에 동적으로 생성됩니다 -->
+            </div>
+
+            <table class="result-table" id="resultTable">
+                <thead>
+                    <tr>
+                        <th>유저명</th>
+                        <th>총 입금액</th>
+                        <th>입금 횟수</th>
+                        <th>금액 구분</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const depositFileInput = document.getElementById('depositFile');
+        const depositFileDisplay = document.getElementById('depositFileDisplay');
+        const userFileInput = document.getElementById('userFile');
+        const userFileDisplay = document.getElementById('userFileDisplay');
+        const passwordInput = document.getElementById('password');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const result = document.getElementById('result');
+        const resultBody = document.getElementById('resultBody');
+        const summaryCards = document.getElementById('summaryCards');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // 파일 선택 시 UI 업데이트
+        depositFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                depositFileDisplay.classList.add('has-file');
+                depositFileDisplay.querySelector('.file-text').textContent = file.name;
+            } else {
+                depositFileDisplay.classList.remove('has-file');
+                depositFileDisplay.querySelector('.file-text').textContent = '입금 기록 파일을 선택하세요';
+            }
+        });
+
+        userFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                userFileDisplay.classList.add('has-file');
+                userFileDisplay.querySelector('.file-text').textContent = file.name;
+            } else {
+                userFileDisplay.classList.remove('has-file');
+                userFileDisplay.querySelector('.file-text').textContent = '유저목록 파일을 선택하세요';
+            }
+        });
+
+        // 폼 제출 처리
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('deposit_file', depositFileInput.files[0]);
+            formData.append('user_file', userFileInput.files[0]);
+            formData.append('password', passwordInput.value);
+
+            // UI 상태 변경
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('/process-user-deposits', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    success.textContent = data.message;
+                    success.style.display = 'block';
+
+                    // 요약 카드 생성
+                    createSummaryCards(data.summary, data.total_users);
+
+                    // 테이블 데이터 채우기
+                    resultBody.innerHTML = '';
+                    data.data.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.user_name}</td>
+                            <td>${user.total_amount.toLocaleString()}원</td>
+                            <td>${user.deposit_count}회</td>
+                            <td><span class="amount-category ${getCategoryClass(user.amount_category)}">${user.amount_category}</span></td>
+                        `;
+                        resultBody.appendChild(row);
+                    });
+
+                    result.style.display = 'block';
+                } else {
+                    error.textContent = data.detail || '오류가 발생했습니다.';
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                error.textContent = '네트워크 오류가 발생했습니다.';
+                error.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        function createSummaryCards(summary, totalUsers) {
+            summaryCards.innerHTML = `
+                <div class="summary-card">
+                    <h4>전체 유저</h4>
+                    <div class="count">${totalUsers}명</div>
+                </div>
+                <div class="summary-card">
+                    <h4>3만원 이상</h4>
+                    <div class="count">${summary.over_30k}명</div>
+                </div>
+                <div class="summary-card">
+                    <h4>2만원 이상</h4>
+                    <div class="count">${summary.over_20k}명</div>
+                </div>
+                <div class="summary-card">
+                    <h4>1만원 이상</h4>
+                    <div class="count">${summary.over_10k}명</div>
+                </div>
+            `;
+        }
+
+        function getCategoryClass(category) {
+            switch (category) {
+                case '3만원 이상':
+                    return 'category-over-30k';
+                case '2만원 이상':
+                    return 'category-over-20k';
+                case '1만원 이상':
+                    return 'category-over-10k';
+                case '1만원 미만':
+                    return 'category-under-10k';
+                case '미입금':
+                    return 'category-no-deposit';
+                default:
+                    return '';
+            }
+        }
+
+        // 다운로드 기능
+        downloadBtn.addEventListener('click', function() {
+            const table = document.getElementById('resultTable');
+            const worksheet = XLSX.utils.table_to_sheet(table);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '유저별입금액분석');
+
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+            const filename = `유저별_입금액_분석_${dateStr}_${timeStr}.xlsx`;
+
+            XLSX.writeFile(workbook, filename);
+        });
+    </script>
+</body>
+</html>

@@ -103,6 +103,11 @@ async def root():
     """메인 페이지 - 파일 업로드 폼"""
     return FileResponse("static/index.html")
 
+@app.get("/user-analysis")
+async def user_analysis():
+    """유저별 입금액 분석 페이지"""
+    return FileResponse("static/user-analysis.html")
+
 @app.post("/process-transaction-data")
 async def process_transaction_data(
     file: UploadFile = File(..., description="토스뱅크 거래내역 Excel 파일"),
@@ -147,6 +152,156 @@ async def process_transaction_data(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
+
+@app.post("/process-user-deposits")
+async def process_user_deposits(
+    deposit_file: UploadFile = File(..., description="입금 기록 Excel 파일"),
+    user_file: UploadFile = File(..., description="유저목록 Excel 파일"),
+    password: str = Form(..., description="입금 기록 Excel 파일 비밀번호")
+):
+    """
+    입금 기록과 유저목록을 분석하여 유저별 총 입금액을 계산합니다.
+
+    - **deposit_file**: 입금 기록.xlsx 파일
+    - **user_file**: 유저목록.xlsx 파일
+    - **password**: 입금 기록 Excel 파일의 비밀번호
+    """
+    # 파일 확장자 검증
+    if not deposit_file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="입금 기록 파일은 Excel 파일(.xlsx, .xls)만 업로드 가능합니다.")
+
+    if not user_file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="유저목록 파일은 Excel 파일(.xlsx, .xls)만 업로드 가능합니다.")
+
+    try:
+        # 입금 기록 파일 처리
+        deposit_content = await deposit_file.read()
+        deposit_data = process_deposit_file(deposit_content, password)
+
+        # 유저목록 파일 처리
+        user_content = await user_file.read()
+        user_data = process_user_file(user_content)
+
+        # 유저별 입금액 계산
+        result = calculate_user_deposits(deposit_data, user_data)
+
+        return {
+            "success": True,
+            "message": "유저별 입금액 분석이 완료되었습니다.",
+            "data": result,
+            "total_users": len(result),
+            "summary": {
+                "over_10k": len([user for user in result if user["total_amount"] >= 10000]),
+                "over_20k": len([user for user in result if user["total_amount"] >= 20000]),
+                "over_30k": len([user for user in result if user["total_amount"] >= 30000])
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
+
+def process_deposit_file(file_content: bytes, password: str) -> List[Dict[str, Any]]:
+    """
+    입금 기록 Excel 파일을 처리합니다.
+    """
+    try:
+        decrypted_workbook = io.BytesIO()
+
+        # 메모리에서 파일 처리
+        file_io = io.BytesIO(file_content)
+        office_file = msoffcrypto.OfficeFile(file_io)
+        office_file.load_key(password=password)
+        office_file.decrypt(decrypted_workbook)
+
+        # Excel 파일 읽기
+        df = pd.read_excel(decrypted_workbook, sheet_name='토스뱅크 거래내역',
+                          usecols='B:J', header=8)
+
+        # 입금 거래만 필터링
+        df = df[df["거래 유형"] == "입금"]
+
+        # 적요 정리 (기존 로직과 동일)
+        df["적요"] = df["적요"].str.replace(r"\(.*$", "", regex=True)
+        df["적요"] = df["적요"].str.replace(" ", "")
+        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{3})$", r"\1\2", regex=True)
+        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{2})$", r"\1\2", regex=True)
+        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
+        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
+
+        # 패턴 매칭이 안 될 경우 메모 열의 값을 사용
+        def process_memo(row):
+            if re.match(r"^\d{2}[가-힣]{2,3}$", row["적요"]):
+                return row["적요"]
+            else:
+                if "메모" in row and pd.notna(row["메모"]) and str(row["메모"]).strip():
+                    return str(row["메모"]).strip()
+                else:
+                    return row["적요"]
+
+        df["적요"] = df.apply(process_memo, axis=1)
+
+        # 적요별 거래금액 합계
+        df = df.groupby("적요")["거래 금액"].sum().reset_index()
+        df = df.sort_values(by="적요", ascending=False)
+        df = df.drop_duplicates(subset="적요")
+
+        return df.to_dict(orient="records")
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"입금 기록 파일 처리 중 오류가 발생했습니다: {str(e)}")
+
+def process_user_file(file_content: bytes) -> List[str]:
+    """
+    유저목록 Excel 파일을 처리합니다.
+    """
+    try:
+        # Excel 파일 읽기 (비밀번호 없음)
+        df = pd.read_excel(io.BytesIO(file_content))
+
+        # 첫 번째 컬럼을 유저명으로 가정
+        user_names = df.iloc[:, 0].dropna().astype(str).tolist()
+
+        return user_names
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"유저목록 파일 처리 중 오류가 발생했습니다: {str(e)}")
+
+def calculate_user_deposits(deposit_data: List[Dict[str, Any]], user_names: List[str]) -> List[Dict[str, Any]]:
+    """
+    유저별 총 입금액을 계산합니다.
+    """
+    result = []
+
+    for user_name in user_names:
+        # 유저명과 일치하는 입금 기록 찾기
+        user_deposits = [deposit for deposit in deposit_data if deposit["적요"] == user_name]
+
+        total_amount = sum(deposit["거래 금액"] for deposit in user_deposits)
+
+        # 금액별 구분
+        amount_category = "미입금"
+        if total_amount >= 30000:
+            amount_category = "3만원 이상"
+        elif total_amount >= 20000:
+            amount_category = "2만원 이상"
+        elif total_amount >= 10000:
+            amount_category = "1만원 이상"
+        elif total_amount > 0:
+            amount_category = "1만원 미만"
+
+        result.append({
+            "user_name": user_name,
+            "total_amount": total_amount,
+            "deposit_count": len(user_deposits),
+            "amount_category": amount_category
+        })
+
+    # 총 입금액 기준 내림차순 정렬
+    result.sort(key=lambda x: x["total_amount"], reverse=True)
+
+    return result
 
 @app.get("/health")
 async def health_check():
