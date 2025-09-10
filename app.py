@@ -50,6 +50,18 @@ def process_excel_data(file_content: bytes, password: str, label_mappings: List[
         # 학번 패턴에서 숫자 + 한글 추출
         df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
         df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
+        # 패턴 매칭이 안 될 경우 메모 열의 값을 사용
+        def process_memo(row):
+            if re.match(r"^\d{2}[가-힣]{2,3}$", row["적요"]):
+                return row["적요"]
+            else:
+                # 메모 열이 있고 값이 있으면 메모 사용, 없으면 원래 적요 사용
+                if "메모" in row and pd.notna(row["메모"]) and str(row["메모"]).strip():
+                    return str(row["메모"]).strip()
+                else:
+                    return row["적요"]
+
+        df["적요"] = df.apply(process_memo, axis=1)
 
 
         # 적요별 거래금액 합계

@@ -409,6 +409,40 @@
             color: white;
         }
 
+        .toggle-btn {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border: 2px solid #e1e5e9;
+            background: white;
+            color: #666;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-btn:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+            color: #667eea;
+        }
+
+        .toggle-btn:has(input:checked) {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .toggle-btn input[type="checkbox"] {
+            margin: 0;
+            transform: scale(1.1);
+            cursor: pointer;
+        }
+
         .checkbox-column {
             width: 50px;
             text-align: center;
@@ -710,6 +744,10 @@
                     <div class="filter-actions">
                         <button type="button" id="selectAllBtn" class="action-btn">전체 선택</button>
                         <button type="button" id="deselectAllBtn" class="action-btn">전체 해제</button>
+                        <label class="toggle-btn" for="showNoStudentIdCheckbox">
+                            <input type="checkbox" id="showNoStudentIdCheckbox">
+                            🤓 학번 없는 사람만
+                        </label>
                         <button type="button" id="clearFiltersBtn" class="action-btn">필터 초기화</button>
                         <button type="button" id="downloadResults" class="action-btn download-action-btn">💾 다운로드</button>
                     </div>
@@ -800,6 +838,7 @@
         const selectAllCheckbox = document.getElementById('selectAllCheckbox');
         const selectAllBtn = document.getElementById('selectAllBtn');
         const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const showNoStudentIdCheckbox = document.getElementById('showNoStudentIdCheckbox');
         const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
         // 데이터 저장
@@ -1115,6 +1154,7 @@
         function filterData() {
             const searchTerm = searchInput.value.toLowerCase();
             const selectedCategory = categoryFilter.value;
+            const showNoStudentIdOnly = showNoStudentIdCheckbox.checked;
 
             const rows = resultBody.querySelectorAll('tr');
             let visibleCount = 0;
@@ -1131,7 +1171,14 @@
                 const matchesSearch = name.includes(searchTerm);
                 const matchesCategory = !selectedCategory || category === selectedCategory;
 
-                if (matchesSearch && matchesCategory) {
+                // 학번 없는 사람만 보기 필터
+                let matchesNoStudentId = true;
+                if (showNoStudentIdOnly) {
+                    // 이름이 숫자로 시작하지 않는 경우 (학번이 없는 경우)
+                    matchesNoStudentId = !/^\d/.test(name);
+                }
+
+                if (matchesSearch && matchesCategory && matchesNoStudentId) {
                     row.classList.remove('hidden');
                     visibleCount++;
                 } else {
@@ -1268,6 +1315,7 @@
         function clearFilters() {
             searchInput.value = '';
             categoryFilter.value = '';
+            showNoStudentIdCheckbox.checked = false;
             deselectAll();
             filterData();
         }
@@ -1278,6 +1326,9 @@
                 filterData();
             });
             categoryFilter.addEventListener('change', function() {
+                filterData();
+            });
+            showNoStudentIdCheckbox.addEventListener('change', function() {
                 filterData();
             });
         }
