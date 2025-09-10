@@ -171,6 +171,7 @@
             background: #f8f9fa;
             border-radius: 10px;
             display: none;
+            overflow-x: auto;
         }
 
         .result h3 {
@@ -219,11 +220,18 @@
             display: none;
         }
 
+        #labelMappings {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
         .label-mapping-item {
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .mapping-value,
@@ -570,6 +578,18 @@
         .download-info small {
             color: #666;
             font-size: 13px;
+        }
+
+        #resultTable {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            overflow-x: auto;
+            display: block;
+        }
+
+        tr td {
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -1103,6 +1123,36 @@
             }
         }
 
+        // 터치 환경을 위한 행 클릭 핸들러 설정
+        function setupRowClickHandlers() {
+            const rows = resultBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                // 행 클릭 이벤트
+                row.addEventListener('click', function(e) {
+                    // 체크박스 자체를 클릭한 경우는 제외 (이벤트 전파 중지)
+                    if (e.target.type === 'checkbox') {
+                        return;
+                    }
+                    
+                    const checkbox = row.querySelector('.row-checkbox');
+                    if (checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                        toggleRowGrayedOut(checkbox);
+                        updateSelectAllCheckbox();
+                        saveCheckedItems();
+                    }
+                });
+
+                // 체크박스 클릭 시 이벤트 전파 중지
+                const checkbox = row.querySelector('.row-checkbox');
+                if (checkbox) {
+                    checkbox.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                    });
+                }
+            });
+        }
+
         function selectAllVisible() {
             const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
             visibleRows.forEach(row => {
@@ -1273,6 +1323,9 @@
                 });
             });
 
+            // 터치 환경을 위한 행 클릭 핸들러 설정
+            setupRowClickHandlers();
+
             // 카테고리 필터 옵션 채우기
             populateCategoryFilter(data);
         }
@@ -1410,6 +1463,9 @@
                             updateSelectAllCheckbox();
                         });
                     });
+
+                    // 터치 환경을 위한 행 클릭 핸들러 설정
+                    setupRowClickHandlers();
 
                     // 카테고리 필터 옵션 채우기
                     populateCategoryFilter(data.data);
