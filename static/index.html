@@ -731,6 +731,10 @@
     </div>
 
     <script>
+        if (!location.pathname.endsWith('/') && location.pathname !== '') {
+            location.hreff = location.pathname + '/';
+        }
+
         const form = document.getElementById('uploadForm');
         const fileInput = document.getElementById('file');
         const fileDisplay = document.getElementById('fileDisplay');
