@@ -863,6 +863,8 @@
                     }
                 });
                 updateSelectAllCheckbox();
+                // 체크박스 상태 복원 후 인원 수 업데이트
+                updatePeopleCount();
             }
         }
 
@@ -1352,6 +1354,13 @@
             if (lastAnalysis.resultData) {
                 currentData = lastAnalysis.resultData;
                 displayAnalysisResults(lastAnalysis.resultData);
+
+                // 체크박스 상태 복원
+                if (lastAnalysis.checkedItems && lastAnalysis.checkedItems.length > 0) {
+                    setTimeout(() => {
+                        loadCheckedItems();
+                    }, 100); // DOM이 완전히 렌더링된 후 실행
+                }
 
                 // 성공 메시지 표시
                 success.textContent = '마지막 분석 결과를 불러왔습니다.';
