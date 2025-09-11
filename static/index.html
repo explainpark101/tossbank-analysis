@@ -217,6 +217,50 @@
             opacity: 0.9;
         }
 
+        .category-summary {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
+        }
+
+        .category-summary h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .category-summary ul {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .category-summary li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .category-summary li:last-child {
+            border-bottom: none;
+        }
+
+        .category-summary .category-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .category-summary .category-amount {
+            font-weight: 600;
+            color: #667eea;
+        }
+
         .result-table {
             width: 100%;
             border-collapse: collapse;
@@ -843,6 +887,8 @@
         const deselectAllBtn = document.getElementById('deselectAllBtn');
         const showNoStudentIdCheckbox = document.getElementById('showNoStudentIdCheckbox');
         const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const categorySummary = document.getElementById('categorySummary');
+        const categorySummaryList = document.getElementById('categorySummaryList');
 
         // 데이터 저장
         let currentData = [];
@@ -1203,6 +1249,11 @@
                 <p style="margin-top: 8px; color: #666; font-size: 14px;">
                     ${visibleCount}건 중 ${checkedCount}건이 체크되었습니다. 체크되지 않은 인원은 ${uncheckedCount}명입니다.
                 </p>
+                <div class="category-summary" id="categorySummary" style="display: none;">
+                    <h4>💰 구분별 입금액 합계</h4>
+                    <ul id="categorySummaryList">
+                    </ul>
+                </div>
             `;
             updatePeopleCount(visibleCount);
         }
@@ -1224,6 +1275,9 @@
             const checkedRows = resultBody.querySelectorAll('.row-checkbox:checked');
             const checkedCount = checkedRows.length;
             checkedCountElement.textContent = `체크: ${checkedCount}명`;
+
+            // 구분별 합계 업데이트
+            updateCategorySummary();
         }
 
         function toggleRowGrayedOut(checkbox) {
@@ -1321,6 +1375,86 @@
             showNoStudentIdCheckbox.checked = false;
             deselectAll();
             filterData();
+        }
+
+        // 구분별 합계 계산 함수
+        function calculateCategorySummary(data) {
+            const summary = {};
+
+            data.forEach(item => {
+                const category = item.구분;
+                const amount = item.입금액;
+
+                if (summary[category]) {
+                    summary[category] += amount;
+                } else {
+                    summary[category] = amount;
+                }
+            });
+
+            return summary;
+        }
+
+        // 구분별 합계 UI 업데이트 함수
+        function updateCategorySummary() {
+            if (!currentData || currentData.length === 0) {
+                const categorySummary = document.getElementById('categorySummary');
+                if (categorySummary) {
+                    categorySummary.style.display = 'none';
+                }
+                return;
+            }
+
+            // 현재 표시된 데이터만 계산 (필터링 적용)
+            const visibleRows = resultBody.querySelectorAll('tr:not(.hidden)');
+            const visibleData = [];
+
+            visibleRows.forEach(row => {
+                const checkbox = row.querySelector('.row-checkbox');
+                if (checkbox) {
+                    const index = parseInt(checkbox.dataset.index);
+                    if (index >= 0 && index < currentData.length) {
+                        visibleData.push(currentData[index]);
+                    }
+                }
+            });
+
+            const categorySummary = document.getElementById('categorySummary');
+            const categorySummaryList = document.getElementById('categorySummaryList');
+
+            if (!categorySummary || !categorySummaryList) {
+                return;
+            }
+
+            if (visibleData.length === 0) {
+                categorySummary.style.display = 'none';
+                return;
+            }
+
+            const summary = calculateCategorySummary(visibleData);
+
+            // UI 업데이트
+            categorySummaryList.innerHTML = '';
+
+            Object.entries(summary)
+                .sort((a, b) => b[1] - a[1]) // 금액 내림차순 정렬
+                .forEach(([category, amount]) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="category-name">${category}</span>
+                        <span class="category-amount">${amount.toLocaleString()}원</span>
+                    `;
+                    categorySummaryList.appendChild(li);
+                });
+            const sum = Object.values(summary).reduce((acc, curr) => acc + curr, 0);
+            categorySummaryList.innerHTML += `
+                <li>
+                    <span class="category-name">💲합계</span>
+                    <span class="category-amount">${sum.toLocaleString()}원</span>
+                </li>
+            `;
+
+            categorySummary.style.display = 'block';
         }
 
         // 필터 변경 시 인원 수 업데이트를 위한 이벤트 리스너 추가
@@ -1458,6 +1592,11 @@
                 <p style="margin-top: 8px; color: #666; font-size: 14px;">
                     ${data.length}건 중 0건이 체크되었습니다. 체크되지 않은 인원은 ${data.length}명입니다.
                 </p>
+                <div class="category-summary" id="categorySummary" style="display: none;">
+                    <h4>💰 구분별 입금액 합계</h4>
+                    <ul id="categorySummaryList">
+                    </ul>
+                </div>
             `;
 
             // 인원 수 업데이트
@@ -1495,6 +1634,9 @@
 
             // 카테고리 필터 옵션 채우기
             populateCategoryFilter(data);
+
+            // 구분별 합계 업데이트
+            updateCategorySummary();
         }
 
 
@@ -1647,6 +1789,8 @@
                     populateCategoryFilter(data.data);
 
                     result.style.display = 'block';
+                    updateCategorySummary();
+
                 } else {
                     error.textContent = data.detail || '오류가 발생했습니다.';
                     error.style.display = 'block';
