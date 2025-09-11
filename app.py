@@ -91,7 +91,7 @@ def process_excel_data(file_content: bytes, password: str, label_mappings: List[
             person_name = row["적요"]
             deposit_amount = row["거래 금액"]
             refund_amount = refund_data.get(person_name, 0)
-            net_amount = deposit_amount + refund_amount
+            net_amount = deposit_amount + (refund_amount if refund_amount <= 0 else -refund_amount)
 
             # 환불이 있는 경우에만 처리
             if net_amount > 0:
