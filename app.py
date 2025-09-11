@@ -38,19 +38,11 @@ def process_excel_data(file_content: bytes, password: str, label_mappings: List[
         df = pd.read_excel(decrypted_workbook, sheet_name='토스뱅크 거래내역',
                           usecols='B:I', header=8)
 
-        # 입금 거래만 필터링
-        df = df[df["거래 유형"] == "입금"]
+        # 입금과 출금 거래 분리
+        deposit_df = df[df["거래 유형"] == "입금"].copy()
+        withdrawal_df = df[df["거래 유형"] == "출금"].copy()
 
-        # 적요 정리
-        df["적요"] = df["적요"].str.replace(r"\(.*$", "", regex=True)
-        df["적요"] = df["적요"].str.replace(" ", "")
-        # 10자리 숫자 + 한글 패턴에서 앞의 2자리 숫자 + 한글 추출 (우선순위)
-        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{3})$", r"\1\2", regex=True)
-        df["적요"] = df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{2})$", r"\1\2", regex=True)
-        # 학번 패턴에서 숫자 + 한글 추출
-        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
-        df["적요"] = df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
-        # 패턴 매칭이 안 될 경우 메모 열의 값을 사용
+        # 적요 정리 함수
         def process_memo(row):
             if re.match(r"^\d{2}[가-힣]{2,3}$", row["적요"]):
                 return row["적요"]
@@ -61,39 +53,70 @@ def process_excel_data(file_content: bytes, password: str, label_mappings: List[
                 else:
                     return row["적요"]
 
-        df["적요"] = df.apply(process_memo, axis=1)
+        # 입금 데이터 처리
+        deposit_df["적요"] = deposit_df["적요"].str.replace(r"\(.*$", "", regex=True)
+        deposit_df["적요"] = deposit_df["적요"].str.replace(" ", "")
+        deposit_df["적요"] = deposit_df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{3})$", r"\1\2", regex=True)
+        deposit_df["적요"] = deposit_df["적요"].str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{2})$", r"\1\2", regex=True)
+        deposit_df["적요"] = deposit_df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
+        deposit_df["적요"] = deposit_df["적요"].str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
+        deposit_df["적요"] = deposit_df.apply(process_memo, axis=1)
 
+        # 출금 데이터에서 환불 패턴 찾기
+        refund_pattern = r"^\d{2}[가-힣]{2,3},"
+        refund_df = withdrawal_df[withdrawal_df["메모"].str.contains(refund_pattern, regex=True, na=False)].copy()
+        # 환불 데이터 처리
+        refund_data = {}
+        if not refund_df.empty:
+            for _, row in refund_df.iterrows():
+                memo = str(row["메모"]).strip()
+                # 환불 패턴에서 사람 이름 추출
+                match = re.match(refund_pattern, memo)
+                if match:
+                    person_name = match.group(0).rstrip(',')  # 마지막 콤마 제거
+                    refund_amount = row["거래 금액"]
+                    if person_name in refund_data:
+                        refund_data[person_name] += refund_amount
+                    else:
+                        refund_data[person_name] = refund_amount
 
-        # 적요별 거래금액 합계
-        df = df.groupby("적요")["거래 금액"].sum().reset_index()
+        # 입금 데이터 그룹핑
+        deposit_grouped = deposit_df.groupby("적요")["거래 금액"].sum().reset_index()
+        deposit_grouped = deposit_grouped.sort_values(by="적요", ascending=False)
+        deposit_grouped = deposit_grouped.drop_duplicates(subset="적요")
 
-        # 적요 기준 내림차순 정렬
-        df = df.sort_values(by="적요", ascending=False)
+        # 환불 금액을 입금에서 차감
+        final_data = []
+        for _, row in deposit_grouped.iterrows():
+            person_name = row["적요"]
+            deposit_amount = row["거래 금액"]
+            refund_amount = refund_data.get(person_name, 0)
+            net_amount = deposit_amount + refund_amount
 
-        # 적요 기준 중복 제거
-        df = df.drop_duplicates(subset="적요")
+            # 환불이 있는 경우에만 처리
+            if net_amount > 0:
+                # 라벨 생성 (동적 매핑 또는 기본값)
+                if label_mappings:
+                    label_dict = {mapping.value: mapping.label for mapping in label_mappings}
+                    label = label_dict.get(net_amount, "기타")
+                else:
+                    label = "술안먹" if net_amount == 15000 else "술먹음" if net_amount == 18000 else "기타"
 
-        # 라벨 생성 (동적 매핑 또는 기본값)
-        if label_mappings:
-            # 사용자 정의 라벨 매핑 사용
-            label_dict = {mapping.value: mapping.label for mapping in label_mappings}
-            df["label"] = df["거래 금액"].apply(
-                lambda x: label_dict.get(x, "기타")
-            )
-            # 기타가 아닌 라벨만 필터링
-            df = df[df["label"] != "기타"]
-        else:
-            # 기본 라벨 매핑 (기존 로직)
-            df["label"] = df["거래 금액"].apply(
-                lambda x: "술안먹" if x == 15000 else "술먹음" if x == 18000 else "기타"
-            )
-            df = df[df["label"] != "기타"]
+                if label != "기타":
+                    datum = {
+                        "입금자": person_name,
+                        "입금액": net_amount,
+                        "구분": label,
+                        "원래입금액": deposit_amount,
+                        "환불금액": refund_amount
+                    }
+
+                    final_data.append(datum)
 
         # 최종 정렬
-        df = df.sort_values(by=["label", "적요"], ascending=True).reset_index(drop=True)
-        df.columns = ["입금자", "입금액", "구분"]
+        final_data.sort(key=lambda x: (x["구분"], x["입금자"]))
 
-        return df.to_dict(orient="records")
+        return final_data
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"파일 처리 중 오류가 발생했습니다: {str(e)}")
