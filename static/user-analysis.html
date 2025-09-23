@@ -70,7 +70,7 @@
             font-size: 16px;
             transition: border-color 0.3s ease;
         }
-        
+
         .form-group textarea {
             min-height: 150px;
             resize: vertical;
@@ -98,7 +98,7 @@
         .submit-btn:hover {
             transform: translateY(-2px);
         }
-        
+
         .submit-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -344,7 +344,7 @@
             resultDiv.style.display = 'none';
 
             try {
-                const response = await fetch('/process-user-analysis', {
+                const response = await fetch('./process-user-analysis', {
                     method: 'POST',
                     body: formData
                 });
