@@ -6,7 +6,7 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 app = FastAPI(title="토스뱅크 거래내역 분석 API", version="1.0.0")
 
@@ -21,7 +21,7 @@ class LabelMapping(BaseModel):
 class ProcessRequest(BaseModel):
     label_mappings: List[LabelMapping]
 
-def process_excel_data(file_content: bytes, password: str, label_mappings: List[LabelMapping] = None) -> List[Dict[str, Any]]:
+def process_excel_data(file_content: bytes, password: str, label_mappings: Optional[List[LabelMapping]] = None) -> List[Dict[str, Any]]:
     """
     Excel 파일을 처리하여 거래내역 데이터를 분석합니다.
     """
@@ -176,54 +176,6 @@ async def process_transaction_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
 
-@app.post("/process-user-deposits")
-async def process_user_deposits(
-    deposit_file: UploadFile = File(..., description="입금 기록 Excel 파일"),
-    user_file: UploadFile = File(..., description="유저목록 Excel 파일"),
-    password: str = Form(..., description="입금 기록 Excel 파일 비밀번호")
-):
-    """
-    입금 기록과 유저목록을 분석하여 유저별 총 입금액을 계산합니다.
-
-    - **deposit_file**: 입금 기록.xlsx 파일
-    - **user_file**: 유저목록.xlsx 파일
-    - **password**: 입금 기록 Excel 파일의 비밀번호
-    """
-    # 파일 확장자 검증
-    if not deposit_file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="입금 기록 파일은 Excel 파일(.xlsx, .xls)만 업로드 가능합니다.")
-
-    if not user_file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="유저목록 파일은 Excel 파일(.xlsx, .xls)만 업로드 가능합니다.")
-
-    try:
-        # 입금 기록 파일 처리
-        deposit_content = await deposit_file.read()
-        deposit_data = process_deposit_file(deposit_content, password)
-
-        # 유저목록 파일 처리
-        user_content = await user_file.read()
-        user_data = process_user_file(user_content)
-
-        # 유저별 입금액 계산
-        result = calculate_user_deposits(deposit_data, user_data)
-
-        return {
-            "success": True,
-            "message": "유저별 입금액 분석이 완료되었습니다.",
-            "data": result,
-            "total_users": len(result),
-            "summary": {
-                "over_10k": len([user for user in result if user["total_amount"] >= 10000]),
-                "over_20k": len([user for user in result if user["total_amount"] >= 20000]),
-                "over_30k": len([user for user in result if user["total_amount"] >= 30000])
-            }
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
 
 def process_deposit_file(file_content: bytes, password: str) -> List[Dict[str, Any]]:
     """
@@ -240,7 +192,7 @@ def process_deposit_file(file_content: bytes, password: str) -> List[Dict[str, A
 
         # Excel 파일 읽기
         df = pd.read_excel(decrypted_workbook, sheet_name='토스뱅크 거래내역',
-                          usecols='B:J', header=8)
+                          usecols='B:I', header=8)
 
         # 입금 거래만 필터링
         df = df[df["거래 유형"] == "입금"]
@@ -275,56 +227,115 @@ def process_deposit_file(file_content: bytes, password: str) -> List[Dict[str, A
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"입금 기록 파일 처리 중 오류가 발생했습니다: {str(e)}")
 
-def process_user_file(file_content: bytes) -> List[str]:
+def process_user_analysis_data(file_content: bytes, password: str) -> Dict[str, Dict[str, Any]]:
     """
-    유저목록 Excel 파일을 처리합니다.
+    사용자 분석을 위해 특정 금액(10000, 20000, 30000)의 입금 내역만 처리합니다.
     """
     try:
-        # Excel 파일 읽기 (비밀번호 없음)
-        df = pd.read_excel(io.BytesIO(file_content))
+        decrypted_workbook = io.BytesIO()
+        file_io = io.BytesIO(file_content)
+        office_file = msoffcrypto.OfficeFile(file_io)
+        office_file.load_key(password=password)
+        office_file.decrypt(decrypted_workbook)
 
-        # 첫 번째 컬럼을 유저명으로 가정
-        user_names = df.iloc[:, 0].dropna().astype(str).tolist()
+        df = pd.read_excel(decrypted_workbook, sheet_name='토스뱅크 거래내역', usecols='B:I', header=8)
 
-        return user_names
+        # 1. 입금 거래만 필터링
+        deposit_df = df[df["거래 유형"] == "입금"].copy()
+
+        # 2. 특정 금액(10000, 20000, 30000)의 거래만 필터링
+        valid_amounts = [10000, 20000, 30000]
+        deposit_df = deposit_df[deposit_df['거래 금액'].isin(valid_amounts)]
+
+        if deposit_df.empty:
+            return {}
+
+        # 3. 적요 정리 (기존 로직과 유사하게)
+        def clean_memo(memo_series):
+            memo_series = memo_series.str.replace(r"\(.*$", "", regex=True)
+            memo_series = memo_series.str.replace(" ", "")
+            memo_series = memo_series.str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{3})$", r"\1\2", regex=True)
+            memo_series = memo_series.str.replace(r"^\d{2}(\d{2})\d{6}\s*([가-힣]{2})$", r"\1\2", regex=True)
+            memo_series = memo_series.str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{3})$", r"\1\3", regex=True)
+            memo_series = memo_series.str.replace(r"^(\d{2})\s*(학번)?\s*([가-힣]{2})$", r"\1\3", regex=True)
+            return memo_series
+
+        deposit_df['적요_정리'] = clean_memo(deposit_df['적요'])
+
+        def process_memo_fallback(row):
+            if not re.match(r"^\d{2}[가-힣]{2,3}$", row["적요_정리"]):
+                 if "메모" in row and pd.notna(row["메모"]) and str(row["메모"]).strip():
+                    return str(row["메모"]).strip()
+            return row["적요_정리"]
+
+        deposit_df['최종_입금자'] = deposit_df.apply(process_memo_fallback, axis=1)
+
+        # 4. 입금자별로 입금액 합계 및 날짜 목록 계산
+        # 거래 일시를 '월-일' 형식의 문자열로 변환
+        deposit_df['거래 일시'] = pd.to_datetime(deposit_df['거래 일시']).dt.strftime('%m-%d')
+
+        analysis = deposit_df.groupby('최종_입금자').agg(
+            total_amount=('거래 금액', 'sum'),
+            deposit_dates=('거래 일시', lambda x: sorted(list(set(x)))) # 중복 제거 및 정렬
+        ).reset_index()
+
+        # 결과를 {이름: {총액, 날짜목록}} 형태의 딕셔너리로 변환
+        result_dict = analysis.set_index('최종_입금자').to_dict('index')
+        return result_dict
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"유저목록 파일 처리 중 오류가 발생했습니다: {str(e)}")
+        # 여기서의 오류는 클라이언트에게 좀 더 구체적으로 전달될 수 있습니다.
+        raise HTTPException(status_code=400, detail=f"사용자 분석 데이터 처리 중 오류: {str(e)}")
 
-def calculate_user_deposits(deposit_data: List[Dict[str, Any]], user_names: List[str]) -> List[Dict[str, Any]]:
+@app.post("/process-user-analysis")
+async def api_process_user_analysis(
+    deposit_file: UploadFile = File(..., description="입금 기록 Excel 파일"),
+    password: str = Form(..., description="Excel 파일 비밀번호"),
+    members: str = Form(..., description="줄바꿈으로 구분된 부원 명단")
+):
     """
-    유저별 총 입금액을 계산합니다.
+    부원 명단과 입금 기록을 받아, 특정 입금 내역을 분석하고 결과를 반환합니다.
     """
-    result = []
+    if not deposit_file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Excel 파일(.xlsx, .xls)만 업로드 가능합니다.")
 
-    for user_name in user_names:
-        # 유저명과 일치하는 입금 기록 찾기
-        user_deposits = [deposit for deposit in deposit_data if deposit["적요"] == user_name]
+    try:
+        file_content = await deposit_file.read()
 
-        total_amount = sum(deposit["거래 금액"] for deposit in user_deposits)
+        # 입금 내역 처리
+        deposit_data = process_user_analysis_data(file_content, password)
 
-        # 금액별 구분
-        amount_category = "미입금"
-        if total_amount >= 30000:
-            amount_category = "3만원 이상"
-        elif total_amount >= 20000:
-            amount_category = "2만원 이상"
-        elif total_amount >= 10000:
-            amount_category = "1만원 이상"
-        elif total_amount > 0:
-            amount_category = "1만원 미만"
+        member_list = [name.strip() for name in members.split('\n') if name.strip()]
 
-        result.append({
-            "user_name": user_name,
-            "total_amount": total_amount,
-            "deposit_count": len(user_deposits),
-            "amount_category": amount_category
-        })
+        result = []
+        for member_name in member_list:
+            if member_name in deposit_data:
+                data = deposit_data[member_name]
+                result.append({
+                    "name": member_name,
+                    "amount": data['total_amount'],
+                    "dates": data['deposit_dates']
+                })
+            else:
+                result.append({
+                    "name": member_name,
+                    "amount": 0,
+                    "dates": []
+                })
 
-    # 총 입금액 기준 내림차순 정렬
-    result.sort(key=lambda x: x["total_amount"], reverse=True)
+        # 입금액 0원인 사람을 뒤로, 나머지는 이름순으로 정렬
+        result.sort(key=lambda x: (x['amount'] == 0, x['name']))
 
-    return result
+        return {
+            "success": True,
+            "message": "사용자 분석이 완료되었습니다.",
+            "data": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
 
 @app.get("/health")
 async def health_check():
