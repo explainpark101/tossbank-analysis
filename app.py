@@ -263,9 +263,10 @@ def process_user_analysis_data(file_content: bytes, password: str) -> Dict[str, 
         deposit_df['적요_정리'] = clean_memo(deposit_df['적요'])
 
         def process_memo_fallback(row):
-            if not re.match(r"^\d{2}[가-힣]{2,3}$", row["적요_정리"]):
-                 if "메모" in row and pd.notna(row["메모"]) and str(row["메모"]).strip():
-                    return str(row["메모"]).strip()
+            # 메모가 있으면 메모를 우선하도록 함.
+            if "메모" in row and pd.notna(row["메모"]) and str(row["메모"]).strip():
+                return str(row["메모"]).strip()
+            # if not re.match(r"^\d{2}[가-힣]{2,3}$", row["적요_정리"]):
             return row["적요_정리"]
 
         deposit_df['최종_입금자'] = deposit_df.apply(process_memo_fallback, axis=1)
