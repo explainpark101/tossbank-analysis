@@ -171,6 +171,23 @@
             background: #c0392b;
         }
 
+        .save-chart-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease;
+            margin-left: 10px;
+        }
+
+        .save-chart-btn:hover {
+            background: #229954;
+        }
+
         .result-table {
             width: 100%;
             border-collapse: collapse;
@@ -245,7 +262,10 @@
         <div class="result" id="result">
             <div class="result-header">
                 <h3 class="result-title">📊 분석 결과</h3>
-                <button id="copy-names-btn" class="copy-btn">붉은 이름 복사</button>
+                <div>
+                    <button id="copy-names-btn" class="copy-btn">붉은 이름 복사</button>
+                    <button id="save-chart-btn" class="save-chart-btn">📊 차트 저장</button>
+                </div>
             </div>
 
             <div id="summary-section" style="margin-bottom: 30px;">
@@ -283,6 +303,7 @@
         const totalMembersSummary = document.getElementById('total-members-summary');
         const pieChartCanvas = document.getElementById('deposit-pie-chart');
         const copyBtn = document.getElementById('copy-names-btn');
+        const saveChartBtn = document.getElementById('save-chart-btn');
         const localStorageKey = 'kuMahjongMemberList';
 
         let myPieChart = null; // 차트 인스턴스를 저장할 변수
@@ -316,6 +337,57 @@
                 });
             } else {
                 alert('복사할 이름이 없습니다.');
+            }
+        });
+
+        // 차트 저장 버튼 이벤트 리스너
+        saveChartBtn.addEventListener('click', () => {
+            if (!myPieChart) {
+                alert('저장할 차트가 없습니다.');
+                return;
+            }
+
+            try {
+                // 차트를 base64 이미지로 변환
+                const imageData = myPieChart.toBase64Image();
+
+                // base64를 blob으로 변환
+                const byteCharacters = atob(imageData.split(',')[1]);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/png' });
+
+                // 다운로드 링크 생성
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+
+                // 파일명에 현재 날짜/시간 포함
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 19).replace(/:/g, '-');
+                link.download = `입금분석차트_${dateStr}.png`;
+
+                // 다운로드 실행
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                // 버튼 피드백
+                const originalText = saveChartBtn.textContent;
+                saveChartBtn.textContent = '저장 완료!';
+                saveChartBtn.disabled = true;
+                setTimeout(() => {
+                    saveChartBtn.textContent = originalText;
+                    saveChartBtn.disabled = false;
+                }, 2000);
+
+            } catch (err) {
+                alert('오류: 차트를 저장하지 못했습니다.');
+                console.error('Could not save chart: ', err);
             }
         });
 
