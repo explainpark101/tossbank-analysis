@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학기말 회계록 작성</title>
+    <!-- 파일 다운로드를 위한 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input[type="file"],
+        .form-group input[type="password"],
+        .form-group input[type="date"],
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-display {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border: 2px dashed #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-display:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-input-display.has-file {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+
+        .file-text {
+            flex: 1;
+            color: #666;
+        }
+
+        .period-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 2px solid #e1e5e9;
+        }
+
+        .period-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .period-item-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .remove-period-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-period-btn:hover {
+            background: #ff5252;
+        }
+
+        .period-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .add-period-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .add-period-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 20px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+            overflow-x: auto;
+        }
+
+        .result h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+
+        .result-table th,
+        .result-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .result-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .result-table tr:hover {
+            background: #f0f2ff;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #e6f7e6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .download-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .copy-btn {
+            background: #e67e22;
+            border-color: #d35400;
+            color: white;
+        }
+
+        .copy-btn:hover {
+            background: #d35400;
+        }
+
+        .nav-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .period-inputs {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📅 학기말 회계록 작성</h1>
+            <p>여러 기간으로 거래내역을 묶어서 분석해보세요</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <a href="./" style="color: #667eea; text-decoration: none; font-weight: 600; padding: 10px 20px; border: 2px solid #667eea; border-radius: 8px; transition: all 0.2s ease; background: white;" onmouseover="this.style.background='#667eea'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#667eea';">🏦 회식비 납부 분석</a>
+                <a href="./user-analysis" style="color: #667eea; text-decoration: none; font-weight: 600; padding: 10px 20px; border: 2px solid #667eea; border-radius: 8px; transition: all 0.2s ease; background: white;" onmouseover="this.style.background='#667eea'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#667eea';">👥 회비 납부 기록 분석</a>
+            </div>
+        </div>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Excel 파일 선택</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                    <div class="file-input-display" id="fileDisplay">
+                        <span class="file-icon">📁</span>
+                        <span class="file-text">파일을 선택하세요</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">비밀번호</label>
+                <input type="password" id="password" name="password" placeholder="Excel 파일 비밀번호를 입력하세요" required>
+            </div>
+
+            <div class="form-group">
+                <label>기간 설정</label>
+                <div id="periodsContainer">
+                    <!-- 자바스크립트로 초기화됨 -->
+                </div>
+                <button type="button" id="addPeriod" class="add-period-btn">+ 기간 추가</button>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                📊 분석 시작
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>데이터를 처리 중입니다...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+
+        <div class="result" id="result">
+            <h3>📈 분석 결과</h3>
+            <div id="resultInfo"></div>
+            <table class="result-table" id="resultTable">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>수입명</th>
+                        <th>수입금액</th>
+                        <th>지출명</th>
+                        <th>지출금액</th>
+                        <th>잔액</th>
+                        <th>비고</th>
+                        <th>사용처</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                </tbody>
+            </table>
+            <div class="download-buttons">
+                <button type="button" class="download-btn" onclick="downloadCSV()">📊 CSV 다운로드</button>
+                <button type="button" class="download-btn" onclick="downloadXLSX()">📈 Excel 다운로드</button>
+                <button type="button" class="download-btn copy-btn" onclick="copyTable()">📋 표 복사</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = [];
+        let periodCounter = 0;
+
+        const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('file');
+        const fileDisplay = document.getElementById('fileDisplay');
+        const passwordInput = document.getElementById('password');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const result = document.getElementById('result');
+        const resultInfo = document.getElementById('resultInfo');
+        const resultBody = document.getElementById('resultBody');
+        const periodsContainer = document.getElementById('periodsContainer');
+        const addPeriodBtn = document.getElementById('addPeriod');
+
+        // 기본 기간 설정
+        const defaultPeriods = [
+            { start: '2025-09-10', end: '2025-09-13', name: '개총 뒷풀이' },
+            { start: '2025-12-03', end: '2025-12-04', name: '종총 뒷풀이' },
+            { start: '2025-12-12', end: '2025-12-18', name: '회지 비용' },
+            { start: '2025-09-25', end: '2025-09-27', name: '대면식' },
+        ];
+
+        // 초기 기간 설정 로드
+        function initializePeriods() {
+            periodsContainer.innerHTML = '';
+            periodCounter = 0;
+            
+            defaultPeriods.forEach(period => {
+                addPeriodItem(period.start, period.end, period.name);
+            });
+        }
+
+        // 기간 아이템 추가 함수
+        function addPeriodItem(start = '', end = '', name = '') {
+            periodCounter++;
+            const periodItem = document.createElement('div');
+            periodItem.className = 'period-item';
+            periodItem.innerHTML = `
+                <div class="period-item-header">
+                    <span class="period-item-title">기간 ${periodCounter}</span>
+                    <button type="button" class="remove-period-btn" onclick="removePeriod(this)">×</button>
+                </div>
+                <div class="period-inputs">
+                    <div>
+                        <label>시작일</label>
+                        <input type="date" class="period-start" value="${start}" required>
+                    </div>
+                    <div>
+                        <label>종료일</label>
+                        <input type="date" class="period-end" value="${end}" required>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <label>기간 이름 (선택사항)</label>
+                    <input type="text" class="period-name" value="${name}" placeholder="예: 1월 상반기">
+                </div>
+            `;
+            periodsContainer.appendChild(periodItem);
+            
+            // 삭제 버튼 표시 여부 업데이트
+            updateRemoveButtons();
+        }
+
+        // 삭제 버튼 표시 여부 업데이트
+        function updateRemoveButtons() {
+            const removeBtns = periodsContainer.querySelectorAll('.remove-period-btn');
+            const shouldShow = periodsContainer.children.length > 1;
+            removeBtns.forEach(btn => {
+                btn.style.display = shouldShow ? 'flex' : 'none';
+            });
+        }
+
+        // 파일 선택 시 UI 업데이트
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileDisplay.classList.add('has-file');
+                fileDisplay.querySelector('.file-text').textContent = file.name;
+            } else {
+                fileDisplay.classList.remove('has-file');
+                fileDisplay.querySelector('.file-text').textContent = '파일을 선택하세요';
+            }
+        });
+
+        // 기간 추가 버튼 이벤트
+        addPeriodBtn.addEventListener('click', function() {
+            addPeriodItem();
+        });
+
+        // 기간 제거 함수
+        function removePeriod(btn) {
+            const periodItem = btn.closest('.period-item');
+            if (periodsContainer.children.length > 1) {
+                periodItem.remove();
+                
+                // 번호 재정렬
+                const items = periodsContainer.querySelectorAll('.period-item');
+                items.forEach((item, index) => {
+                    item.querySelector('.period-item-title').textContent = `기간 ${index + 1}`;
+                });
+                periodCounter = items.length;
+                
+                updateRemoveButtons();
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', initializePeriods);
+
+        // 폼 제출 처리
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // 기간 데이터 수집
+            const periods = [];
+            const periodItems = periodsContainer.querySelectorAll('.period-item');
+            
+            for (let i = 0; i < periodItems.length; i++) {
+                const item = periodItems[i];
+                const start = item.querySelector('.period-start').value;
+                const end = item.querySelector('.period-end').value;
+                const name = item.querySelector('.period-name').value.trim();
+                
+                if (!start || !end) {
+                    error.textContent = '모든 기간의 시작일과 종료일을 입력해주세요.';
+                    error.style.display = 'block';
+                    return;
+                }
+                
+                if (new Date(start) > new Date(end)) {
+                    error.textContent = '시작일이 종료일보다 늦을 수 없습니다.';
+                    error.style.display = 'block';
+                    return;
+                }
+                
+                periods.push({
+                    start: start,
+                    end: end,
+                    name: name || null
+                });
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('password', passwordInput.value);
+            formData.append('periods', JSON.stringify(periods));
+
+            // UI 상태 변경
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('/process-transaction-by-period', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    success.textContent = data.message;
+                    success.style.display = 'block';
+
+                    currentData = data.data;
+                    renderTable();
+                    result.style.display = 'block';
+
+                } else {
+                    error.textContent = data.detail || '오류가 발생했습니다.';
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                error.textContent = '네트워크 오류가 발생했습니다.';
+                error.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // 테이블 렌더링 함수
+        function renderTable() {
+            resultInfo.innerHTML = `<p><strong>총 ${currentData.length}건</strong>의 거래내역이 분석되었습니다.</p>`;
+            resultBody.innerHTML = '';
+            
+            currentData.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.dataset.index = index; // 인덱스 저장
+                row.title = "더블클릭하여 이 거래 삭제"; // 툴팁 추가
+                row.style.cursor = "pointer";
+                
+                // 더블클릭 이벤트 추가
+                row.addEventListener('dblclick', function() {
+                    handleRowDoubleClick(index);
+                });
+                
+                row.innerHTML = `
+                    <td>${item.날짜}</td>
+                    <td>${item.수입명 || ''}</td>
+                    <td>${item.수입금액 ? item.수입금액 : ''}</td>
+                    <td>${item.지출명 || ''}</td>
+                    <td>${item.지출금액 ? item.지출금액 : ''}</td>
+                    <td>${item.잔액}</td>
+                    <td>${item.비고 || ''}</td>
+                    <td>${item.사용처 || ''}</td>
+                `;
+                resultBody.appendChild(row);
+            });
+        }
+
+        // 행 더블클릭 핸들러 (거래 삭제)
+        function handleRowDoubleClick(index) {
+            if (!confirm('이 거래 내역을 삭제하시겠습니까?\n삭제 후 잔액은 자동으로 재계산됩니다.')) {
+                return;
+            }
+
+            // 삭제할 거래 정보 가져오기
+            const item = currentData[index];
+            
+            // 수입/지출 금액 파싱 (빈 문자열 처리)
+            const income = (item.수입금액 && item.수입금액 !== "") ? Number(item.수입금액) : 0;
+            const expense = (item.지출금액 && item.지출금액 !== "") ? Number(item.지출금액) : 0;
+            
+            // 잔액 변동분 계산 (수입은 +였고 지출은 -였음)
+            // 삭제 시: 수입이면 잔액 감소(-), 지출이면 잔액 증가(+)
+            // 즉, (수입 - 지출) 만큼 잔액에서 빼야 함
+            const diff = income - expense;
+            
+            // 데이터 배열에서 제거
+            currentData.splice(index, 1);
+            
+            // 이후 항목들의 잔액 재계산
+            for (let i = index; i < currentData.length; i++) {
+                currentData[i].잔액 = Math.round(currentData[i].잔액 - diff);
+            }
+            
+            // 테이블 다시 렌더링
+            renderTable();
+        }
+
+        // CSV 다운로드
+        function downloadCSV() {
+            if (currentData.length === 0) {
+                alert('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            const headers = ['날짜', '수입명', '수입금액', '지출명', '지출금액', '잔액', '비고', '사용처'];
+            const csvContent = [
+                headers.join(','),
+                ...currentData.map(row => [
+                    `"${row.날짜}"`,
+                    `"${row.수입명 || ''}"`,
+                    row.수입금액 || 0,
+                    `"${row.지출명 || ''}"`,
+                    row.지출금액 || 0,
+                    row.잔액,
+                    `"${row.비고 || ''}"`,
+                    `"${row.사용처 || ''}"`
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const filename = `학기말_회계록_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.csv`;
+            saveAs(blob, filename);
+        }
+
+        // Excel 다운로드
+        function downloadXLSX() {
+            if (currentData.length === 0) {
+                alert('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(currentData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '학기말회계록');
+
+            const filename = `학기말_회계록_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+        }
+
+        // 표 복사
+        function copyTable() {
+            if (currentData.length === 0) {
+                alert('복사할 데이터가 없습니다.');
+                return;
+            }
+
+            const headers = ['날짜', '수입명', '수입금액', '지출명', '지출금액', '잔액', '비고', '사용처'];
+            let text = headers.join('\t') + '\n';
+            
+            currentData.forEach(row => {
+                text += [
+                    row.날짜,
+                    row.수입명 || '',
+                    row.수입금액 || 0,
+                    row.지출명 || '',
+                    row.지출금액 || 0,
+                    row.잔액,
+                    row.비고 || '',
+                    row.사용처 || ''
+                ].join('\t') + '\n';
+            });
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('표가 클립보드에 복사되었습니다. Excel이나 Google Sheets에 붙여넣을 수 있습니다.');
+                }).catch(() => {
+                    alert('복사에 실패했습니다.');
+                });
+            } else {
+                // Fallback
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('표가 클립보드에 복사되었습니다.');
+                } catch (err) {
+                    alert('복사에 실패했습니다.');
+                }
+                document.body.removeChild(textArea);
+            }
+        }
+    </script>
+</body>
+</html>
+
